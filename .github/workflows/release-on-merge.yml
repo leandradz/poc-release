@@ -1,0 +1,57 @@
+name: Create Release on Merge
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up GitHub CLI
+      uses: cli/cli-action@v2
+      with:
+        version: 'latest'
+
+    - name: Determine Release Tag
+      id: determine_tag
+      run: |
+        BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
+        echo "Branch name: $BRANCH_NAME"
+        
+        # Define the version bump based on branch type
+        if [[ "$BRANCH_NAME" == feat/* ]]; then
+          VERSION_BUMP="minor"
+        elif [[ "$BRANCH_NAME" == chore/* ]]; then
+          VERSION_BUMP="patch"
+        elif [[ "$BRANCH_NAME" == fix/* ]]; then
+          VERSION_BUMP="patch"
+        elif [[ "$BRANCH_NAME" == hotfix/* ]]; then
+          VERSION_BUMP="major"
+        else
+          echo "Unknown branch type, no version bump."
+          exit 1
+        fi
+
+        # Get the current version from the latest tag
+        CURRENT_TAG=$(git describe --tags --abbrev=0)
+        echo "Current tag: $CURRENT_TAG"
+
+        # Bump the version
+        NEW_TAG=$(npm version $VERSION_BUMP --no-git-tag-version | awk '{ print $2 }')
+        echo "New tag: $NEW_TAG"
+        echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
+
+    - name: Create Release
+      run: |
+        gh release create "${{ env.RELEASE_TAG }}" \
+          --title "${{ env.RELEASE_TAG }}" \
+          --notes "Release created for branch type: ${{ env.RELEASE_TAG }}."
+
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
