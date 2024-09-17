@@ -16,8 +16,9 @@ jobs:
     - name: Install GitHub CLI
       run: sudo apt-get install gh
 
-    - name: Set up GitHub CLI authentication
-      run: gh auth setup-git
+    - name: Authenticate GitHub CLI
+      run: |
+        gh auth login --with-token < ${{ secrets.GITHUB_TOKEN }}
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
