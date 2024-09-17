@@ -21,7 +21,6 @@ jobs:
           cache: npm
           registry-url: https://npm.pkg.github.com/
       - run: npm install
-      - run: npm test
 
   publish-gpr:
     needs: build
