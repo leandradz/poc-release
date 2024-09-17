@@ -13,12 +13,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Fetch all tags
+      run: |
+        git fetch --tags
+
     - name: Determine Version Bump
       id: determine_version
       run: |
-        # Fetch all commits to ensure full history is available
-        git fetch --tags
-
         # Get the last 10 commit messages
         COMMITS=$(git log -10 --pretty=format:"%s")
         echo "Recent commits: $COMMITS"
@@ -28,11 +29,11 @@ jobs:
 
         # Determine version bump type based on commit messages
         for COMMIT in $COMMITS; do
-          if [[ "$COMMIT" == feat/* ]]; then
+          if [[ "$COMMIT" == feat:* ]]; then
             VERSION_BUMP="minor"
-          elif [[ "$COMMIT" == fix/* ]]; then
+          elif [[ "$COMMIT" == fix:* ]]; then
             VERSION_BUMP="patch"
-          elif [[ "$COMMIT" == chore/* ]]; then
+          elif [[ "$COMMIT" == chore:* ]]; then
             continue
           fi
         done
@@ -41,10 +42,31 @@ jobs:
         CURRENT_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
         echo "Current tag: $CURRENT_TAG"
 
-        # Bump the version
-        NEW_TAG=$(npm version $VERSION_BUMP --no-git-tag-version | awk '{ print $2 }')
-        echo "New tag: $NEW_TAG"
+        # Extract the version number from the tag (e.g., v1.2.3 to 1.2.3)
+        VERSION_NUMBER=$(echo $CURRENT_TAG | sed 's/v//')
+        echo "Version number: $VERSION_NUMBER"
 
+        # Increment the version number based on the bump type
+        IFS='.' read -r -a VERSION_PARTS <<< "$VERSION_NUMBER"
+        MAJOR=${VERSION_PARTS[0]}
+        MINOR=${VERSION_PARTS[1]}
+        PATCH=${VERSION_PARTS[2]}
+
+        if [[ "$VERSION_BUMP" == "major" ]]; then
+          MAJOR=$((MAJOR + 1))
+          MINOR=0
+          PATCH=0
+        elif [[ "$VERSION_BUMP" == "minor" ]]; then
+          MINOR=$((MINOR + 1))
+          PATCH=0
+        elif [[ "$VERSION_BUMP" == "patch" ]]; then
+          PATCH=$((PATCH + 1))
+        fi
+
+        # Create new tag
+        NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+        echo "New tag: $NEW_TAG"
+        
         # Ensure RELEASE_TAG is not empty
         if [ -z "$NEW_TAG" ]; then
           echo "Error: NEW_TAG is empty. Aborting."
