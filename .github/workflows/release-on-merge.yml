@@ -19,9 +19,15 @@ jobs:
     - name: Determine Release Tag
       id: determine_tag
       run: |
-        BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
+        # Get the latest commit hash that triggered the workflow
+        COMMIT_HASH=$(git rev-parse HEAD)
+        echo "Commit hash: $COMMIT_HASH"
+
+        # Find the branch that was merged into main
+        MERGE_BASE=$(git merge-base main $COMMIT_HASH)
+        BRANCH_NAME=$(git branch --contains $MERGE_BASE | grep -v "main" | head -n 1 | sed 's/^\* //')
         echo "Branch name: $BRANCH_NAME"
-        
+
         # Define the version bump based on branch type
         if [[ "$BRANCH_NAME" == feat/* ]]; then
           VERSION_BUMP="minor"
@@ -36,8 +42,8 @@ jobs:
           exit 1
         fi
 
-        # Get the current version from the latest tag
-        CURRENT_TAG=$(git describe --tags --abbrev=0)
+        # Get the current version from the latest tag, default to v0.0.0 if no tags exist
+        CURRENT_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
         echo "Current tag: $CURRENT_TAG"
 
         # Bump the version
