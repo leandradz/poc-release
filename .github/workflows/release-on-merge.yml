@@ -16,9 +16,9 @@ jobs:
     - name: Determine Version Bump
       id: determine_version
       run: |
-        # Fetch all commits to make sure we have the full history
+        # Fetch all commits to ensure full history is available
         git fetch --tags
-        
+
         # Get the last 10 commit messages
         COMMITS=$(git log -10 --pretty=format:"%s")
         echo "Recent commits: $COMMITS"
@@ -33,7 +33,6 @@ jobs:
           elif [[ "$COMMIT" == fix:* ]]; then
             VERSION_BUMP="patch"
           elif [[ "$COMMIT" == chore:* ]]; then
-            # Chore does not affect the version directly
             continue
           fi
         done
@@ -45,14 +44,24 @@ jobs:
         # Bump the version
         NEW_TAG=$(npm version $VERSION_BUMP --no-git-tag-version | awk '{ print $2 }')
         echo "New tag: $NEW_TAG"
+
+        # Ensure RELEASE_TAG is not empty
+        if [ -z "$NEW_TAG" ]; then
+          echo "Error: NEW_TAG is empty. Aborting."
+          exit 1
+        fi
+
         echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
 
     - name: Create Git Tag
+      if: env.RELEASE_TAG != ''
       run: |
+        echo "Creating tag ${RELEASE_TAG}"
         git tag "${{ env.RELEASE_TAG }}"
         git push origin "${{ env.RELEASE_TAG }}"
 
     - name: Create Release
+      if: env.RELEASE_TAG != ''
       run: |
         gh release create "${{ env.RELEASE_TAG }}" \
           --title "${{ env.RELEASE_TAG }}" \
