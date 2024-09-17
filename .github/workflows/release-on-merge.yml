@@ -94,4 +94,4 @@ jobs:
           --notes "Release created for tag: ${{ env.RELEASE_TAG }}."
 
       env:
-        GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
