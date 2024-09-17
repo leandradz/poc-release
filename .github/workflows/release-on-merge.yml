@@ -28,11 +28,11 @@ jobs:
 
         # Determine version bump type based on commit messages
         for COMMIT in $COMMITS; do
-          if [[ "$COMMIT" == feat:* ]]; then
+          if [[ "$COMMIT" == feat/* ]]; then
             VERSION_BUMP="minor"
-          elif [[ "$COMMIT" == fix:* ]]; then
+          elif [[ "$COMMIT" == fix/* ]]; then
             VERSION_BUMP="patch"
-          elif [[ "$COMMIT" == chore:* ]]; then
+          elif [[ "$COMMIT" == chore/* ]]; then
             continue
           fi
         done
