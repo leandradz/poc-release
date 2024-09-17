@@ -24,9 +24,20 @@ jobs:
         echo "Commit hash: $COMMIT_HASH"
 
         # Find the branch that was merged into main
-        MERGE_BASE=$(git merge-base main $COMMIT_HASH)
-        BRANCH_NAME=$(git branch --contains $MERGE_BASE | grep -v "main" | head -n 1 | sed 's/^\* //')
+        # If the workflow is triggered by a push to 'main', we can find the merge commit message
+        MERGE_COMMIT_MSG=$(git log -1 --pretty=%B)
+        echo "Merge commit message: $MERGE_COMMIT_MSG"
+
+        # Extract the branch name from the commit message
+        BRANCH_NAME=$(echo "$MERGE_COMMIT_MSG" | grep -oP '(?<=Merge branch ").*(?=")')
         echo "Branch name: $BRANCH_NAME"
+
+        # If branch name is empty, use the commit history to find it
+        if [ -z "$BRANCH_NAME" ]; then
+          echo "Branch name not found in commit message, trying alternative method..."
+          # Find the branches that contain the merge commit
+          BRANCH_NAME=$(git branch -r --contains $COMMIT_HASH | grep -v 'main' | head -n 1 | sed 's/origin\///')
+        fi
 
         # Define the version bump based on branch type
         if [[ "$BRANCH_NAME" == feat/* ]]; then
@@ -37,6 +48,9 @@ jobs:
           VERSION_BUMP="patch"
         elif [[ "$BRANCH_NAME" == hotfix/* ]]; then
           VERSION_BUMP="major"
+        elif [[ "$BRANCH_NAME" == "" ]]; then
+          echo "No branch name detected. Aborting."
+          exit 1
         else
           echo "Unknown branch type, no version bump."
           exit 1
