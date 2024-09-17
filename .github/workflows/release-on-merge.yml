@@ -16,28 +16,33 @@ jobs:
     - name: Install GitHub CLI
       run: sudo apt-get install gh
 
-    - name: Determine Release Tag
-      id: determine_tag
+    - name: Get Pull Request Details
+      id: pr_details
       run: |
-        # Get the latest commit hash that triggered the workflow
+        # Get the commit hash that triggered the workflow
         COMMIT_HASH=$(git rev-parse HEAD)
         echo "Commit hash: $COMMIT_HASH"
 
-        # Find the branch that was merged into main
-        # If the workflow is triggered by a push to 'main', we can find the merge commit message
-        MERGE_COMMIT_MSG=$(git log -1 --pretty=%B)
-        echo "Merge commit message: $MERGE_COMMIT_MSG"
+        # Get the PR number from the commit message
+        PR_NUMBER=$(gh pr list --search "$COMMIT_HASH" --json number -q ".[] | .number")
+        echo "Pull Request Number: $PR_NUMBER"
 
-        # Extract the branch name from the commit message
-        BRANCH_NAME=$(echo "$MERGE_COMMIT_MSG" | grep -oP '(?<=Merge branch ").*(?=")')
-        echo "Branch name: $BRANCH_NAME"
-
-        # If branch name is empty, use the commit history to find it
-        if [ -z "$BRANCH_NAME" ]; then
-          echo "Branch name not found in commit message, trying alternative method..."
-          # Find the branches that contain the merge commit
-          BRANCH_NAME=$(git branch -r --contains $COMMIT_HASH | grep -v 'main' | head -n 1 | sed 's/origin\///')
+        if [ -z "$PR_NUMBER" ]; then
+          echo "No PR found for this commit. Exiting."
+          exit 1
         fi
+
+        # Get the base branch (target branch) and head branch (source branch) from the PR
+        PR_DETAILS=$(gh pr view "$PR_NUMBER" --json headRefName,baseRefName -q '.headRefName')
+        echo "Source Branch: $PR_DETAILS"
+
+        echo "BRANCH_NAME=$PR_DETAILS" >> $GITHUB_ENV
+
+    - name: Determine Release Tag
+      id: determine_tag
+      run: |
+        BRANCH_NAME=${{ env.BRANCH_NAME }}
+        echo "Branch name: $BRANCH_NAME"
 
         # Define the version bump based on branch type
         if [[ "$BRANCH_NAME" == feat/* ]]; then
