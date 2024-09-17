@@ -1,4 +1,4 @@
-name: Create Release on Merge
+name: Create Release on Commit
 
 on:
   push:
@@ -13,59 +13,30 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Install GitHub CLI
-      run: sudo apt-get install gh
-
-    - name: Authenticate GitHub CLI
+    - name: Determine Version Bump
+      id: determine_version
       run: |
-        gh auth login --with-token < ${{ secrets.GITHUB_TOKEN }}
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Fetch all commits to make sure we have the full history
+        git fetch --tags
+        
+        # Get the last 10 commit messages
+        COMMITS=$(git log -10 --pretty=format:"%s")
+        echo "Recent commits: $COMMITS"
+        
+        # Initialize bump type to patch
+        VERSION_BUMP="patch"
 
-    - name: Get Pull Request Details
-      id: pr_details
-      run: |
-        # Get the commit hash that triggered the workflow
-        COMMIT_HASH=$(git rev-parse HEAD)
-        echo "Commit hash: $COMMIT_HASH"
-
-        # Get the PR number from the commit message
-        PR_NUMBER=$(gh pr list --search "$COMMIT_HASH" --json number -q ".[] | .number")
-        echo "Pull Request Number: $PR_NUMBER"
-
-        if [ -z "$PR_NUMBER" ]; then
-          echo "No PR found for this commit. Exiting."
-          exit 1
-        fi
-
-        # Get the base branch (target branch) and head branch (source branch) from the PR
-        BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q '.headRefName')
-        echo "Source Branch: $BRANCH_NAME"
-
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-    - name: Determine Release Tag
-      id: determine_tag
-      run: |
-        BRANCH_NAME=${{ env.BRANCH_NAME }}
-        echo "Branch name: $BRANCH_NAME"
-
-        # Define the version bump based on branch type
-        if [[ "$BRANCH_NAME" == feat/* ]]; then
-          VERSION_BUMP="minor"
-        elif [[ "$BRANCH_NAME" == chore/* ]]; then
-          VERSION_BUMP="patch"
-        elif [[ "$BRANCH_NAME" == fix/* ]]; then
-          VERSION_BUMP="patch"
-        elif [[ "$BRANCH_NAME" == hotfix/* ]]; then
-          VERSION_BUMP="major"
-        elif [[ "$BRANCH_NAME" == "" ]]; then
-          echo "No branch name detected. Aborting."
-          exit 1
-        else
-          echo "Unknown branch type, no version bump."
-          exit 1
-        fi
+        # Determine version bump type based on commit messages
+        for COMMIT in $COMMITS; do
+          if [[ "$COMMIT" == feat:* ]]; then
+            VERSION_BUMP="minor"
+          elif [[ "$COMMIT" == fix:* ]]; then
+            VERSION_BUMP="patch"
+          elif [[ "$COMMIT" == chore:* ]]; then
+            # Chore does not affect the version directly
+            continue
+          fi
+        done
 
         # Get the current version from the latest tag, default to v0.0.0 if no tags exist
         CURRENT_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
@@ -76,11 +47,16 @@ jobs:
         echo "New tag: $NEW_TAG"
         echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
 
+    - name: Create Git Tag
+      run: |
+        git tag "${{ env.RELEASE_TAG }}"
+        git push origin "${{ env.RELEASE_TAG }}"
+
     - name: Create Release
       run: |
         gh release create "${{ env.RELEASE_TAG }}" \
           --title "${{ env.RELEASE_TAG }}" \
-          --notes "Release created for branch type: ${{ env.RELEASE_TAG }}."
+          --notes "Release created for tag: ${{ env.RELEASE_TAG }}."
 
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
