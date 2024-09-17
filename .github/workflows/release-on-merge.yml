@@ -38,20 +38,24 @@ jobs:
           fi
         done
 
-        # Get the current version from the latest tag, default to v0.0.0 if no tags exist
-        CURRENT_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
-        echo "Current tag: $CURRENT_TAG"
+        # Get the latest version from the tags
+        LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
+        if [ -z "$LATEST_TAG" ]; then
+          LATEST_TAG="v0.0.0"
+        fi
+        echo "Latest tag: $LATEST_TAG"
 
-        # Extract the version number from the tag (e.g., v1.2.3 to 1.2.3)
-        VERSION_NUMBER=$(echo $CURRENT_TAG | sed 's/v//')
+        # Extract the version number from the latest tag (e.g., v1.2.3 to 1.2.3)
+        VERSION_NUMBER=$(echo $LATEST_TAG | sed 's/v//')
         echo "Version number: $VERSION_NUMBER"
 
-        # Increment the version number based on the bump type
+        # Split version number into parts
         IFS='.' read -r -a VERSION_PARTS <<< "$VERSION_NUMBER"
         MAJOR=${VERSION_PARTS[0]}
         MINOR=${VERSION_PARTS[1]}
         PATCH=${VERSION_PARTS[2]}
 
+        # Increment version number based on the bump type
         if [[ "$VERSION_BUMP" == "major" ]]; then
           MAJOR=$((MAJOR + 1))
           MINOR=0
@@ -90,4 +94,4 @@ jobs:
           --notes "Release created for tag: ${{ env.RELEASE_TAG }}."
 
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}
