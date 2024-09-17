@@ -1,4 +1,4 @@
-name: Create Release with Changelog
+name: Create Release on Commit
 
 on:
   push:
@@ -20,22 +20,14 @@ jobs:
     - name: Determine Version Bump
       id: determine_version
       run: |
-        # Get the latest tag from git
-        LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
-        if [ -z "$LATEST_TAG" ]; then
-          LATEST_TAG="v0.0.0"
-        fi
-        echo "Latest tag: $LATEST_TAG"
-
-        # Extract the version number from the latest tag (e.g., v1.2.3 to 1.2.3)
-        VERSION_NUMBER=$(echo $LATEST_TAG | sed 's/v//')
-        echo "Version number: $VERSION_NUMBER"
-
-        # Increment version number based on commit messages
+        # Get the last 10 commit messages
+        COMMITS=$(git log -10 --pretty=format:"%s")
+        echo "Recent commits: $COMMITS"
+        
         # Initialize bump type to patch
         VERSION_BUMP="patch"
-        COMMITS=$(git log --oneline ${LATEST_TAG}..HEAD)
 
+        # Determine version bump type based on commit messages
         for COMMIT in $COMMITS; do
           if [[ "$COMMIT" == feat:* ]]; then
             VERSION_BUMP="minor"
@@ -45,6 +37,17 @@ jobs:
             continue
           fi
         done
+
+        # Get the latest version from the tags
+        LATEST_TAG=$(git tag --sort=-v:refname | head -n 1)
+        if [ -z "$LATEST_TAG" ]; then
+          LATEST_TAG="v0.0.0"
+        fi
+        echo "Latest tag: $LATEST_TAG"
+
+        # Extract the version number from the latest tag (e.g., v1.2.3 to 1.2.3)
+        VERSION_NUMBER=$(echo $LATEST_TAG | sed 's/v//')
+        echo "Version number: $VERSION_NUMBER"
 
         # Split version number into parts
         IFS='.' read -r -a VERSION_PARTS <<< "$VERSION_NUMBER"
@@ -68,14 +71,24 @@ jobs:
         NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
         echo "New tag: $NEW_TAG"
         
+        # Ensure RELEASE_TAG is not empty
+        if [ -z "$NEW_TAG" ]; then
+          echo "Error: NEW_TAG is empty. Aborting."
+          exit 1
+        fi
+
         echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
 
     - name: Generate Changelog
       id: generate_changelog
       run: |
         # Generate changelog from commits between the last and the new tag
-        CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%h %s" --no-merges)
-        
+        if [ -n "${{ env.LATEST_TAG }}" ]; then
+          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%h %s" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"%h %s" --no-merges)
+        fi
+
         # Save changelog to a file
         echo "Changelog:" > CHANGELOG.md
         echo "$CHANGELOG" >> CHANGELOG.md
@@ -96,6 +109,5 @@ jobs:
         gh release create "${{ env.RELEASE_TAG }}" \
           --title "${{ env.RELEASE_TAG }}" \
           --notes "$(cat CHANGELOG.md)"
-
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
