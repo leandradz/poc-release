@@ -33,8 +33,6 @@ jobs:
             VERSION_BUMP="minor"
           elif [[ "$COMMIT" == fix:* ]]; then
             VERSION_BUMP="patch"
-          elif [[ "$COMMIT" == hotfix:* ]]; then
-            VERSION_BUMP="major"
           elif [[ "$COMMIT" == chore:* ]]; then
             continue
           fi
@@ -81,6 +79,23 @@ jobs:
 
         echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
 
+    - name: Generate Changelog
+      id: generate_changelog
+      run: |
+        # Generate changelog from commits between the last and the new tag
+        if [ -n "${{ env.LATEST_TAG }}" ]; then
+          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%h %s" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"%h %s" --no-merges)
+        fi
+
+        # Save changelog to a file
+        echo "Changelog:" > CHANGELOG.md
+        echo "$CHANGELOG" >> CHANGELOG.md
+        cat CHANGELOG.md
+
+        echo "CHANGELOG=CHANGELOG.md" >> $GITHUB_ENV
+
     - name: Create Git Tag
       if: env.RELEASE_TAG != ''
       run: |
@@ -93,7 +108,7 @@ jobs:
       run: |
         gh release create "${{ env.RELEASE_TAG }}" \
           --title "${{ env.RELEASE_TAG }}" \
-          --notes "Release created for tag: ${{ env.RELEASE_TAG }}."
+          --notes "$(cat CHANGELOG.md)"
 
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}
