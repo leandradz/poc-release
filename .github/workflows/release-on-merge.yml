@@ -16,6 +16,11 @@ jobs:
     - name: Install GitHub CLI
       run: sudo apt-get install gh
 
+    - name: Set up GitHub CLI authentication
+      run: gh auth setup-git
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Get Pull Request Details
       id: pr_details
       run: |
@@ -33,10 +38,10 @@ jobs:
         fi
 
         # Get the base branch (target branch) and head branch (source branch) from the PR
-        PR_DETAILS=$(gh pr view "$PR_NUMBER" --json headRefName,baseRefName -q '.headRefName')
-        echo "Source Branch: $PR_DETAILS"
+        BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q '.headRefName')
+        echo "Source Branch: $BRANCH_NAME"
 
-        echo "BRANCH_NAME=$PR_DETAILS" >> $GITHUB_ENV
+        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
     - name: Determine Release Tag
       id: determine_tag
